@@ -11,21 +11,38 @@ provider "aws" {
   region = "eu-west-3"
 }
 
-resource "aws_lambda_function" "example_lambda" {
-  function_name = var.lambda_function_name
-  runtime       = "python3.12"
+resource "aws_lambda_function" "edit_product_lambda" {
+  function_name = var.lambda_function_name_edit_product
+  runtime       = "python3.9"
   role          = aws_iam_role.lambda_role.arn
   handler       = "main.lambda_handler"
   filename      = "my-deployment-package.zip"
   depends_on = [
     aws_iam_role_policy_attachment.lambda_logs,
-    aws_cloudwatch_log_group.example,
+    aws_cloudwatch_log_group.edit_product,
+  ]
+}
+
+resource "aws_lambda_function" "create_product_lambda" {
+  function_name = var.lambda_function_name_create_product
+  runtime       = "python3.9"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "main.lambda_handler"
+  filename      = "my-deployment-package.zip"
+  depends_on = [
+    aws_iam_role_policy_attachment.lambda_logs,
+    aws_cloudwatch_log_group.create_product,
   ]
 }
 
 
-resource "aws_cloudwatch_log_group" "example" {
-  name              = "/aws/lambda/${var.lambda_function_name}"
+resource "aws_cloudwatch_log_group" "edit_product" {
+  name              = "/aws/lambda/${var.lambda_function_name_edit_product}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "create_product" {
+  name              = "/aws/lambda/${var.lambda_function_name_create_product}"
   retention_in_days = 14
 }
 
@@ -76,56 +93,110 @@ resource "aws_iam_role" "lambda_role" {
 EOF
 }
 
-resource "aws_api_gateway_rest_api" "example_api" {
+# Name of the API
+resource "aws_api_gateway_rest_api" "quable_product_api" {
   name = var.apigateway_name
 }
 
-resource "aws_api_gateway_resource" "example_resource" {
-  rest_api_id = aws_api_gateway_rest_api.example_api.id
-  parent_id   = aws_api_gateway_rest_api.example_api.root_resource_id
+# Creating the /product/ ressource (PARENT)
+resource "aws_api_gateway_resource" "product_ressource" {
+  rest_api_id = aws_api_gateway_rest_api.quable_product_api.id
+  parent_id   = aws_api_gateway_rest_api.quable_product_api.root_resource_id
   path_part   = var.endpoint_path
 }
 
-resource "aws_api_gateway_method" "example_method" {
-  rest_api_id   = aws_api_gateway_rest_api.example_api.id
-  resource_id   = aws_api_gateway_resource.example_resource.id
-  http_method   = "GET"
+# Creating the /product/edit ressource (CHILD EDIT)
+resource "aws_api_gateway_resource" "edit_product_ressource" {
+  depends_on = [aws_api_gateway_resource.product_ressource]
+  rest_api_id = aws_api_gateway_rest_api.quable_product_api.id
+  parent_id   = aws_api_gateway_resource.product_ressource.id
+  path_part   = var.endpoint_edit_product
+}
+# Creating the /product/create ressource (CHILD CREATE)
+resource "aws_api_gateway_resource" "create_product_ressource" {
+  depends_on = [aws_api_gateway_resource.product_ressource]
+  rest_api_id = aws_api_gateway_rest_api.quable_product_api.id
+  parent_id   = aws_api_gateway_resource.product_ressource.id
+  path_part   = var.endpoint_create_product
+}
+
+# Creating the POST /product/edit method (CHILD EDIT)
+resource "aws_api_gateway_method" "edit_product_method" {
+  rest_api_id   = aws_api_gateway_rest_api.quable_product_api.id
+  resource_id   = aws_api_gateway_resource.edit_product_ressource.id  # Use the resource_id of edit_product_ressource (/product/edit)
+  http_method   = "POST"
   authorization = "NONE"
 }
 
-resource "aws_api_gateway_integration" "integration" {
-  rest_api_id             = aws_api_gateway_rest_api.example_api.id
-  resource_id             = aws_api_gateway_resource.example_resource.id
-  http_method             = aws_api_gateway_method.example_method.http_method
+# Creating the POST /product/create method (CHILD CREATE)
+resource "aws_api_gateway_method" "create_product_method" {
+  rest_api_id   = aws_api_gateway_rest_api.quable_product_api.id
+  resource_id   = aws_api_gateway_resource.create_product_ressource.id  # Use the resource_id of edit_product_ressource (/product/edit)
+  http_method   = "POST"
+  authorization = "NONE"
+}
+
+# API Gateway Integration for create_product_method
+resource "aws_api_gateway_integration" "create_product_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.quable_product_api.id
+  resource_id             = aws_api_gateway_resource.create_product_ressource.id
+  http_method             = aws_api_gateway_method.create_product_method.http_method
   integration_http_method = "POST"
   type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.example_lambda.invoke_arn
+  uri                     = aws_lambda_function.create_product_lambda.invoke_arn
 }
 
-resource "aws_lambda_permission" "apigw_lambda" {
-  statement_id  = "AllowExecutionFromAPIGateway"
+# API Gateway Integration for edit_product_method
+resource "aws_api_gateway_integration" "edit_product_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.quable_product_api.id
+  resource_id             = aws_api_gateway_resource.edit_product_ressource.id
+  http_method             = aws_api_gateway_method.edit_product_method.http_method
+  integration_http_method = "POST"
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.edit_product_lambda.invoke_arn
+}
+
+# Lambda permission for create_product_lambda
+resource "aws_lambda_permission" "create_product_permission" {
+  statement_id  = "AllowAPIGatewayInvokeCreateProductLambda"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.example_lambda.function_name
+  function_name = aws_lambda_function.create_product_lambda.arn
   principal     = "apigateway.amazonaws.com"
-  source_arn    = "arn:aws:execute-api:${var.myregion}:${var.accountId}:${aws_api_gateway_rest_api.example_api.id}/*/${aws_api_gateway_method.example_method.http_method}${aws_api_gateway_resource.example_resource.path}"
+
+  source_arn = "${aws_api_gateway_rest_api.quable_product_api.execution_arn}/*/POST/product/create"
 }
 
-resource "aws_api_gateway_deployment" "example" {
-  rest_api_id = aws_api_gateway_rest_api.example_api.id
+# Lambda permission for edit_product_lambda
+resource "aws_lambda_permission" "edit_product_permission" {
+  statement_id  = "AllowAPIGatewayInvokeEditProductLambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.edit_product_lambda.arn
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_api_gateway_rest_api.quable_product_api.execution_arn}/*/POST/product/edit"
+}
+
+resource "aws_api_gateway_deployment" "quable_api" {
+  rest_api_id = aws_api_gateway_rest_api.quable_product_api.id
 
   triggers = {
-    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.example_api.body))
+    redeployment = sha1(jsonencode(aws_api_gateway_rest_api.quable_product_api.body))
   }
 
   lifecycle {
     create_before_destroy = true
   }
-  depends_on = [aws_api_gateway_method.example_method, aws_api_gateway_integration.integration]
 
+  depends_on = [
+    aws_api_gateway_method.edit_product_method,
+    aws_api_gateway_method.create_product_method,
+    aws_api_gateway_integration.edit_product_integration,
+    aws_api_gateway_integration.create_product_integration,
+  ]
 }
 
-resource "aws_api_gateway_stage" "example" {
-  deployment_id = aws_api_gateway_deployment.example.id
-  rest_api_id   = aws_api_gateway_rest_api.example_api.id
+resource "aws_api_gateway_stage" "quable_api" {
+  deployment_id = aws_api_gateway_deployment.quable_api.id
+  rest_api_id   = aws_api_gateway_rest_api.quable_product_api.id
   stage_name    = "dev"
 }
