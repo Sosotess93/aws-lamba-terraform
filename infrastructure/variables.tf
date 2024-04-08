@@ -42,5 +42,5 @@ variable "endpoint_edit_product" {
 variable "endpoint_create_product" {
   description = "The GET endpoint path"
   type        = string
-  default     = "edit"
+  default     = "create"
 }
