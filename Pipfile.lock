@@ -32,22 +32,6 @@
             "markers": "python_full_version >= '3.6.0'",
             "version": "==2.1.1"
         },
-        "currencyconverter": {
-            "hashes": [
-                "sha256:76a71a3106dba34006b003eb6624b6e63b20d3f67a93d8035972ea070cd09da3",
-                "sha256:fac8e64de14987c8a0dd33dc965a7ea255635ce13a86dddaf05585a65fa2f7eb"
-            ],
-            "index": "pypi",
-            "version": "==0.17.3"
-        },
-        "forex-python": {
-            "hashes": [
-                "sha256:7d4a5c36b66e7ef9ee515f607a41249a1ae1a2499a9e011702b66f784325cc76",
-                "sha256:8e6b375ad1f15b90a15d95ef8156651fae8487075dd007d2b7dd8efad8f44e41"
-            ],
-            "index": "pypi",
-            "version": "==1.8"
-        },
         "idna": {
             "hashes": [
                 "sha256:814f528e8dead7d329833b91c5faa87d60bf71824cd12a7530b5526063d02cb4",
