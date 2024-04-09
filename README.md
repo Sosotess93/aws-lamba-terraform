@@ -1,5 +1,19 @@
 # Overview
+
 An example to use Terraform to create an AWS Lambda function with an API gateway.
+This example allows you to create an API on AWS using API Gateway. This API allows you to listen to webhooks for Quable based on the product creation or product modification trigger.
+The 2 Lambdas functions are also created and attached to the routes using the proxies.
+
+## API Gateway routes
+
+There is actually 2 routes in the API gateway for the moment
+
+1.  `requirements.txt` file from pipenv
+
+```bash
+POST /product/edit
+POST /product/create
+```
 
 ## Instructions
 
@@ -62,9 +76,7 @@ terraform apply
 
 10. Go to the URL output of Terraform
 
-The default query has ?amount=100&fromCurrency=USD&toCurrency=CAD
-
-Change the amount and from and to currency to see different conversions.
+The output URL will be displayed at the end of execution
 
 11. Clean up
 
